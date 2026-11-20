@@ -1,0 +1,10 @@
+import { useQuery } from '@tanstack/react-query';
+import { workersApi } from '../../api/workers';
+import { ErrorState, LoadingRows } from '../../components/ui/ResourceStates';
+
+export default function WorkerEarnings() {
+  const { data, isLoading, isError, refetch } = useQuery({ queryKey: ['worker-earnings'], queryFn: workersApi.earnings });
+  if (isLoading) return <LoadingRows/>;
+  if (isError) return <ErrorState onRetry={refetch}/>;
+  return <div><p className="text-xs font-bold uppercase tracking-widest text-forest-700">WORKER</p><h1 className="mt-2 font-display text-3xl font-extrabold">Earnings</h1><div className="mt-6 grid gap-3 sm:grid-cols-2"><article className="rounded-xl bg-forest-700 p-6 text-white"><p className="text-sm text-emerald-100">Total earned</p><p className="mt-2 font-display text-4xl font-extrabold">₹{data.total.toLocaleString('en-IN')}</p><p className="mt-2 text-xs text-emerald-100">Across all completed jobs</p></article><article className="rounded-xl border border-slate-100 bg-white p-6"><p className="text-sm text-slate-500">Pending payout</p><p className="mt-2 font-display text-4xl font-extrabold">₹{data.pending.toLocaleString('en-IN')}</p><p className="mt-2 text-xs text-slate-400">Released after requester confirms the job</p></article></div><section className="mt-8"><h2 className="font-display text-xl font-extrabold">Recent jobs</h2><div className="mt-4 overflow-hidden rounded-xl border border-slate-100 bg-white">{data.history.map((item) => <article key={item.id} className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-100 px-5 py-4 last:border-0"><div><p className="font-bold">{item.task}</p><p className="mt-1 text-xs text-slate-500">{item.id} · {item.date}</p></div><strong>₹{item.amount.toLocaleString('en-IN')}</strong></article>)}</div></section></div>;
+}

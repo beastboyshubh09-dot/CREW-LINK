@@ -1,0 +1,11 @@
+import { useState } from 'react';
+import { useQuery } from '@tanstack/react-query';
+import { adminApi } from '../../api/admin';
+import StatusBadge from '../../components/ui/StatusBadge';
+import { EmptyState, ErrorState, LoadingRows } from '../../components/ui/ResourceStates';
+
+export default function People() {
+  const [search, setSearch] = useState('');
+  const { data = [], isLoading, isError, refetch } = useQuery({ queryKey: ['admin-users', search], queryFn: () => adminApi.users(search) });
+  return <div><p className="text-xs font-bold uppercase tracking-widest text-forest-700">OPERATIONS</p><h1 className="mt-2 font-display text-3xl font-extrabold">People</h1><p className="mt-2 text-sm text-slate-500">Search requester and worker accounts.</p><label className="mt-6 block max-w-sm"><span className="sr-only">Search users</span><input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Search name, email, or role" className="w-full rounded-lg border border-slate-200 bg-white px-4 py-3 text-sm"/></label><div className="mt-4">{isLoading ? <LoadingRows/> : isError ? <ErrorState onRetry={refetch}/> : data.length ? <div className="overflow-x-auto rounded-xl border border-slate-100 bg-white"><table className="w-full min-w-[640px] text-left text-sm"><thead className="bg-slate-50 text-xs uppercase text-slate-500"><tr><th className="px-5 py-3">Name</th><th className="px-5 py-3">Email</th><th className="px-5 py-3">Role</th><th className="px-5 py-3">Status</th><th className="px-5 py-3">Joined</th></tr></thead><tbody>{data.map((person) => <tr key={person.id} className="border-t border-slate-100"><td className="px-5 py-4 font-bold">{person.name}</td><td className="px-5 py-4 text-slate-500">{person.email}</td><td className="px-5 py-4 capitalize">{person.role}</td><td className="px-5 py-4"><StatusBadge status={person.status}/></td><td className="px-5 py-4 text-slate-500">{person.joined}</td></tr>)}</tbody></table></div> : <EmptyState title="No users found" detail="Try a different search term."/>}</div></div>;
+}
