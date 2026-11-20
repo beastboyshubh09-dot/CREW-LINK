@@ -1,12 +1,19 @@
-import { api, USE_MOCK, wait } from './client';
-import { demoWorkers, mockJobs } from './mockData';
-import { distanceInKm, formatDistance, findNearbyWorkers } from '../utils/location';
+import { api, USE_MOCK, wait } from './client.js';
+import { demoWorkers, mockJobs } from './mockData.js';
+import { distanceInKm, formatDistance, findNearbyWorkers } from '../utils/location.js';
 
 export const jobsApi = {
   async list({ status, search } = {}) {
     if (!USE_MOCK) return (await api.get('/jobs/', { params: { status, search } })).data;
     await wait();
-    return mockJobs.filter((job) => (!status || status === 'all' || job.status === status) && (!search || `${job.id} ${job.type} ${job.location.address}`.toLowerCase().includes(search.toLowerCase()))).sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+    return mockJobs
+      .filter((job) => {
+        const matchesStatus = !status || status === 'all' || job.status === status;
+        const address = job.location?.address || job.job_address || '';
+        const matchesSearch = !search || `${job.id} ${job.type} ${address}`.toLowerCase().includes(search.toLowerCase());
+        return matchesStatus && matchesSearch;
+      })
+      .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
   },
   async get(id) {
     if (!USE_MOCK) return (await api.get(`/jobs/${id}/`)).data;
@@ -16,15 +23,43 @@ export const jobsApi = {
   async create(payload) {
     if (!USE_MOCK) return (await api.post('/jobs/', payload)).data;
     await wait(700);
+
+    // Keep active demo workers fresh
+    demoWorkers.forEach((w) => {
+      if (w.availability_status === 'available') {
+        w.last_location_update = new Date().toISOString();
+      }
+    });
+
     const freshWorkers = demoWorkers.filter((worker) => Date.now() - new Date(worker.last_location_update).getTime() <= 2 * 60_000);
     const eligible = findNearbyWorkers(freshWorkers, payload.location, payload.search_radius_km, [payload.type]);
-    const eligibleIds = new Set(eligible.map((worker) => worker.id));
-    const crew = (payload.worker_ids || []).filter((id) => eligibleIds.has(id)).map((workerId) => {
-      const worker = demoWorkers.find((item) => item.id === workerId);
-      const distance = worker && distanceInKm(payload.location, worker.location);
-      return worker && { id: worker.id, name: worker.name, rating: worker.rating, distance: formatDistance(distance), location: worker.location };
-    }).filter(Boolean);
-    const job = { ...payload, id: `CL-${2500 + mockJobs.length}`, status: crew.length >= payload.workers ? 'assigned' : 'matching', price: payload.workers * payload.duration * 300, createdAt: new Date().toISOString(), crew };
+    const eligibleMap = new Map(eligible.map((w) => [w.id, w]));
+
+    const crew = (payload.worker_ids || [])
+      .map((workerId) => {
+        const worker = demoWorkers.find((item) => item.id === workerId) || eligibleMap.get(workerId);
+        if (worker && worker.location) {
+          const distance = distanceInKm(payload.location, worker.location);
+          return {
+            id: worker.id,
+            name: worker.name,
+            rating: worker.rating,
+            distance: formatDistance(distance),
+            location: worker.location
+          };
+        }
+        return null;
+      })
+      .filter(Boolean);
+
+    const job = {
+      ...payload,
+      id: `CL-${2500 + mockJobs.length}`,
+      status: crew.length >= payload.workers ? 'assigned' : 'matching',
+      price: payload.workers * payload.duration * 300,
+      createdAt: new Date().toISOString(),
+      crew
+    };
     mockJobs.unshift(job);
     return job;
   },

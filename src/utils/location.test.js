@@ -1,6 +1,13 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { distanceInKm, findNearbyWorkers, formatDistance, isValidCoordinate } from './location.js';
+import {
+  distanceInKm,
+  extractCoordinates,
+  findNearbyWorkers,
+  formatDistance,
+  getBrowserLocation,
+  isValidCoordinate
+} from './location.js';
 
 test('validates Indian coordinates and rejects invalid coordinate ranges', () => {
   const exampleIndianCities = [
@@ -17,11 +24,33 @@ test('validates Indian coordinates and rejects invalid coordinate ranges', () =>
   assert.equal(isValidCoordinate({ lat: 12, lng: Infinity }), false);
 });
 
+test('extractCoordinates handles varied property naming and formats', () => {
+  assert.deepEqual(extractCoordinates({ lat: 12.9716, lng: 77.5946 }), { lat: 12.9716, lng: 77.5946 });
+  assert.deepEqual(extractCoordinates({ latitude: 12.9716, longitude: 77.5946 }), { lat: 12.9716, lng: 77.5946 });
+  assert.deepEqual(extractCoordinates({ lat: '12.9716', lon: '77.5946' }), { lat: 12.9716, lng: 77.5946 });
+  assert.equal(extractCoordinates(null), null);
+  assert.equal(extractCoordinates(undefined), null);
+  assert.equal(extractCoordinates(''), null);
+  assert.equal(extractCoordinates({ lat: '', lng: 77 }), null);
+  assert.equal(extractCoordinates({ lat: 12, lng: -185 }), null);
+});
+
 test('calculates straight-line distance and formats metric distances', () => {
   const distance = distanceInKm({ lat: 12.9716, lng: 77.5946 }, { lat: 12.9141, lng: 74.856 });
   assert.ok(distance > 290 && distance < 310);
   assert.equal(formatDistance(0.42), '420 m');
   assert.equal(formatDistance(2.24), '2.2 km');
+  assert.equal(formatDistance(-5), 'Distance unavailable');
+  assert.equal(formatDistance(NaN), 'Distance unavailable');
+});
+
+test('distanceInKm works across alternative coordinate schemas', () => {
+  const distance = distanceInKm(
+    { latitude: 12.9716, longitude: 77.5946 },
+    { lat: '12.9141', lon: '74.856' }
+  );
+  assert.ok(distance > 290 && distance < 310);
+  assert.equal(distanceInKm(null, { lat: 12, lng: 77 }), null);
 });
 
 test('returns only available, opted-in, skilled workers inside the radius in proximity order', () => {
@@ -44,4 +73,11 @@ test('can identify four eligible workers in a city-scale radius', () => {
     skills: ['Furniture shifting']
   }));
   assert.equal(findNearbyWorkers(workers, location, 5, ['Furniture shifting']).length, 4);
+});
+
+test('getBrowserLocation rejects gracefully in non-browser environment', async () => {
+  await assert.rejects(
+    async () => getBrowserLocation(),
+    /GPS is unavailable in this browser/
+  );
 });

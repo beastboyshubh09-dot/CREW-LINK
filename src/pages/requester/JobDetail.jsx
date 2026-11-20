@@ -7,7 +7,7 @@ import LocationMap from '../../components/map/LocationMap';
 import StatusBadge from '../../components/ui/StatusBadge';
 import { ErrorState, Skeleton } from '../../components/ui/ResourceStates';
 import { useToast } from '../../context/ToastContext';
-import { isValidCoordinate } from '../../utils/location';
+import { extractCoordinates, isValidCoordinate } from '../../utils/location';
 
 const timeline = ['pending', 'matching', 'assigned', 'in progress', 'completed'];
 const timelineLabel = { pending: 'Job posted', matching: 'Finding nearby crew', assigned: 'Crew assigned', 'in progress': 'Work in progress', completed: 'Job completed' };
@@ -22,15 +22,203 @@ export default function JobDetail() {
   const cancel = useMutation({ mutationFn: () => jobsApi.cancel(jobId), onSuccess: () => { queryClient.invalidateQueries({ queryKey: ['job', jobId] }); queryClient.invalidateQueries({ queryKey: ['jobs'] }); toast('Job cancelled.'); } });
   const review = useMutation({ mutationFn: () => jobsApi.review(jobId, { workers: ratings, comment }), onSuccess: () => toast('Thanks for supporting your crew with a review.') });
   const payment = useMutation({ mutationFn: () => paymentsApi.pay(job), onSuccess: () => toast('Payment completed. Thanks for using CrewLink.'), onError: (error) => toast(error.message || 'Payment could not be completed.', 'error') });
+
   if (isLoading) return <div className="space-y-4"><Skeleton className="h-12 w-64"/><Skeleton className="h-64"/></div>;
   if (isError) return <ErrorState onRetry={refetch}/>;
   if (!job) return <div className="py-16 text-center"><h1 className="font-display text-2xl font-extrabold">Job not found</h1><Link to="/app/requester/jobs" className="mt-3 inline-block font-bold text-forest-700">Back to jobs</Link></div>;
-  const currentIndex = timeline.indexOf(job.status);
-  const workerMarkers = job.crew.filter((worker) => isValidCoordinate(worker.location)).map((worker) => ({ ...worker.location, id: worker.id, name: worker.name }));
 
-  return <div className="mx-auto max-w-6xl"><Link to="/app/requester/jobs" className="text-sm font-bold text-forest-700">← My jobs</Link><div className="mt-5 flex flex-wrap items-start justify-between gap-4"><div><div className="flex flex-wrap items-center gap-3"><h1 className="font-display text-3xl font-extrabold">{job.type}</h1><StatusBadge status={job.status}/></div><p className="mt-2 text-sm text-slate-500">{job.id} · Posted {new Date(job.createdAt).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })}</p></div><div className="flex gap-2">{job.status === 'completed' && <button onClick={() => payment.mutate()} disabled={payment.isPending} className="rounded-lg bg-forest-600 px-4 py-2.5 text-sm font-bold text-white disabled:opacity-60">{payment.isPending ? 'Opening checkout…' : `Pay ₹${job.price.toLocaleString('en-IN')}`}</button>}{!['completed', 'cancelled', 'in progress'].includes(job.status) && <button onClick={() => cancel.mutate()} disabled={cancel.isPending} className="rounded-lg border border-rose-200 bg-white px-4 py-2.5 text-sm font-bold text-rose-700">{cancel.isPending ? 'Cancelling…' : 'Cancel job'}</button>}</div></div>
-    <div className="mt-7 grid gap-5 lg:grid-cols-[1fr_350px]"><div className="space-y-5"><section className="rounded-xl border border-slate-100 bg-white p-5 sm:p-6"><h2 className="font-display text-lg font-extrabold">Job progress</h2><ol className="mt-6 grid grid-cols-5 gap-2">{timeline.map((step, index) => { const done = currentIndex >= index || job.status === 'cancelled' && index === 0; const active = step === job.status; return <li key={step} className="min-w-0"><div className={`mb-3 h-1.5 rounded-full ${done ? 'bg-forest-600' : 'bg-slate-100'}`}/><p className={`text-[10px] font-bold leading-4 sm:text-xs ${active ? 'text-forest-700' : done ? 'text-slate-700' : 'text-slate-400'}`}>{timelineLabel[step]}</p></li>; })}</ol>{job.status === 'cancelled' && <p className="mt-4 rounded-lg bg-rose-50 px-3 py-2 text-sm font-semibold text-rose-700">This job was cancelled.</p>}</section>
-      <section className="rounded-xl border border-slate-100 bg-white p-5 sm:p-6"><div className="flex items-center justify-between"><div><h2 className="font-display text-lg font-extrabold">Your crew</h2><p className="mt-1 text-sm text-slate-500">{job.crew.length ? `${job.crew.length} verified workers assigned` : 'We’re finding the closest available crew.'}</p></div>{job.crew.length > 0 && <span className="text-xs font-bold text-forest-700">LIVE</span>}</div>{job.crew.length ? <div className="mt-5 divide-y divide-slate-100">{job.crew.map((worker) => <div key={worker.id} className="flex items-center gap-3 py-3 first:pt-0 last:pb-0"><div className="grid h-10 w-10 place-items-center rounded-full bg-forest-100 font-bold text-forest-700">{worker.name[0]}</div><div className="min-w-0 flex-1"><p className="font-bold">{worker.name}</p><p className="text-xs text-slate-500">{worker.distance} away</p></div><span className="text-sm font-bold text-amber-600">★ {worker.rating}</span></div>)}</div> : <div className="mt-5 flex items-center gap-3 rounded-lg bg-sky-50 p-4 text-sm text-sky-800"><span className="h-2 w-2 animate-pulse rounded-full bg-sky-500"/>Matching with workers near {job.location.address}</div>}</section>
-      {job.status === 'completed' && <section className="rounded-xl border border-slate-100 bg-white p-5 sm:p-6"><h2 className="font-display text-lg font-extrabold">Rate your crew</h2><p className="mt-1 text-sm text-slate-500">Your feedback helps great workers get more jobs.</p><div className="mt-4 space-y-3">{job.crew.map((worker) => <div key={worker.id} className="flex flex-wrap items-center justify-between gap-2"><span className="text-sm font-semibold">{worker.name}</span><div className="flex gap-1" role="radiogroup" aria-label={`Rate ${worker.name}`}>{[1, 2, 3, 4, 5].map((rate) => <button key={rate} type="button" aria-label={`${rate} stars`} onClick={() => setRatings((current) => ({ ...current, [worker.id]: rate }))} className={`text-xl ${rate <= (ratings[worker.id] || 0) ? 'text-amber-500' : 'text-slate-300'}`}>★</button>)}</div></div>)}</div><textarea value={comment} onChange={(event) => setComment(event.target.value)} rows="2" placeholder="Add a note for the crew (optional)" className="mt-4 w-full rounded-lg border border-slate-200 px-3 py-2.5 text-sm"/><button disabled={!job.crew.every((worker) => ratings[worker.id]) || review.isPending} onClick={() => review.mutate()} className="mt-3 rounded-lg bg-forest-600 px-4 py-2.5 text-sm font-bold text-white disabled:opacity-50">Submit review</button></section>}</div>
-      <aside className="space-y-5"><section className="overflow-hidden rounded-xl border border-slate-100 bg-white"><div className="p-5"><h2 className="font-display font-extrabold">Pickup location</h2><p className="mt-1 text-sm text-slate-500">{job.location.address}</p></div><LocationMap value={job.location} markers={workerMarkers} route={workerMarkers.length > 0} height={230}/><div className="grid grid-cols-2 gap-3 p-5 text-sm"><div><p className="text-xs text-slate-400">CREW SIZE</p><p className="mt-1 font-bold">{job.workers} workers</p></div><div><p className="text-xs text-slate-400">DURATION</p><p className="mt-1 font-bold">{job.duration} hours</p></div><div className="col-span-2 border-t border-slate-100 pt-3"><p className="text-xs text-slate-400">JOB DESCRIPTION</p><p className="mt-1 leading-6">{job.description}</p></div><div className="col-span-2 flex items-center justify-between border-t border-slate-100 pt-3"><span className="text-slate-500">Total estimate</span><strong className="font-display text-lg">₹{job.price.toLocaleString('en-IN')}</strong></div></div></section><p className="text-xs leading-5 text-slate-400">Worker location markers are shared only when available to this assigned job.</p></aside></div></div>;
+  const currentIndex = timeline.indexOf(job.status);
+  const crew = Array.isArray(job.crew) ? job.crew : [];
+
+  // Normalize job pickup location safely
+  const jobLocation = job.location && isValidCoordinate(job.location)
+    ? { ...extractCoordinates(job.location), address: job.location.address || '' }
+    : (job.job_latitude && job.job_longitude)
+      ? { lat: Number(job.job_latitude), lng: Number(job.job_longitude), address: job.job_address || '' }
+      : null;
+
+  const jobAddress = jobLocation?.address || job.location?.address || job.job_address || 'Pickup location not specified';
+
+  // Extract worker markers from crew members
+  const workerMarkers = crew
+    .map((worker) => {
+      const coords = extractCoordinates(worker?.location);
+      if (!coords) return null;
+      return { ...coords, id: worker.id || worker.name, name: worker.name };
+    })
+    .filter(Boolean);
+
+  return (
+    <div className="mx-auto max-w-6xl">
+      <Link to="/app/requester/jobs" className="text-sm font-bold text-forest-700">← My jobs</Link>
+      <div className="mt-5 flex flex-wrap items-start justify-between gap-4">
+        <div>
+          <div className="flex flex-wrap items-center gap-3">
+            <h1 className="font-display text-3xl font-extrabold">{job.type}</h1>
+            <StatusBadge status={job.status}/>
+          </div>
+          <p className="mt-2 text-sm text-slate-500">
+            {job.id} · Posted {new Date(job.createdAt).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })}
+          </p>
+        </div>
+        <div className="flex gap-2">
+          {job.status === 'completed' && (
+            <button
+              onClick={() => payment.mutate()}
+              disabled={payment.isPending}
+              className="rounded-lg bg-forest-600 px-4 py-2.5 text-sm font-bold text-white transition hover:bg-forest-700 disabled:opacity-60"
+            >
+              {payment.isPending ? 'Opening checkout…' : `Pay ₹${job.price.toLocaleString('en-IN')}`}
+            </button>
+          )}
+          {!['completed', 'cancelled', 'in progress'].includes(job.status) && (
+            <button
+              onClick={() => cancel.mutate()}
+              disabled={cancel.isPending}
+              className="rounded-lg border border-rose-200 bg-white px-4 py-2.5 text-sm font-bold text-rose-700 transition hover:bg-rose-50"
+            >
+              {cancel.isPending ? 'Cancelling…' : 'Cancel job'}
+            </button>
+          )}
+        </div>
+      </div>
+
+      <div className="mt-7 grid gap-5 lg:grid-cols-[1fr_350px]">
+        <div className="space-y-5">
+          <section className="rounded-xl border border-slate-100 bg-white p-5 sm:p-6">
+            <h2 className="font-display text-lg font-extrabold">Job progress</h2>
+            <ol className="mt-6 grid grid-cols-5 gap-2">
+              {timeline.map((step, index) => {
+                const done = currentIndex >= index || (job.status === 'cancelled' && index === 0);
+                const active = step === job.status;
+                return (
+                  <li key={step} className="min-w-0">
+                    <div className={`mb-3 h-1.5 rounded-full ${done ? 'bg-forest-600' : 'bg-slate-100'}`}/>
+                    <p className={`text-[10px] font-bold leading-4 sm:text-xs ${active ? 'text-forest-700' : done ? 'text-slate-700' : 'text-slate-400'}`}>
+                      {timelineLabel[step]}
+                    </p>
+                  </li>
+                );
+              })}
+            </ol>
+            {job.status === 'cancelled' && (
+              <p className="mt-4 rounded-lg bg-rose-50 px-3 py-2 text-sm font-semibold text-rose-700">
+                This job was cancelled.
+              </p>
+            )}
+          </section>
+
+          <section className="rounded-xl border border-slate-100 bg-white p-5 sm:p-6">
+            <div className="flex items-center justify-between">
+              <div>
+                <h2 className="font-display text-lg font-extrabold">Your crew</h2>
+                <p className="mt-1 text-sm text-slate-500">
+                  {crew.length ? `${crew.length} verified workers assigned` : 'We’re finding the closest available crew.'}
+                </p>
+              </div>
+              {crew.length > 0 && <span className="text-xs font-bold text-forest-700">LIVE</span>}
+            </div>
+            {crew.length ? (
+              <div className="mt-5 divide-y divide-slate-100">
+                {crew.map((worker) => (
+                  <div key={worker.id} className="flex items-center gap-3 py-3 first:pt-0 last:pb-0">
+                    <div className="grid h-10 w-10 place-items-center rounded-full bg-forest-100 font-bold text-forest-700">
+                      {worker.name[0]}
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <p className="font-bold">{worker.name}</p>
+                      <p className="text-xs text-slate-500">{worker.distance ? `${worker.distance} away` : 'Assigned'}</p>
+                    </div>
+                    <span className="text-sm font-bold text-amber-600">★ {worker.rating}</span>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <div className="mt-5 flex items-center gap-3 rounded-lg bg-sky-50 p-4 text-sm text-sky-800">
+                <span className="h-2 w-2 animate-pulse rounded-full bg-sky-500"/>
+                Matching with workers near {jobAddress}
+              </div>
+            )}
+          </section>
+
+          {job.status === 'completed' && (
+            <section className="rounded-xl border border-slate-100 bg-white p-5 sm:p-6">
+              <h2 className="font-display text-lg font-extrabold">Rate your crew</h2>
+              <p className="mt-1 text-sm text-slate-500">Your feedback helps great workers get more jobs.</p>
+              <div className="mt-4 space-y-3">
+                {crew.map((worker) => (
+                  <div key={worker.id} className="flex flex-wrap items-center justify-between gap-2">
+                    <span className="text-sm font-semibold">{worker.name}</span>
+                    <div className="flex gap-1" role="radiogroup" aria-label={`Rate ${worker.name}`}>
+                      {[1, 2, 3, 4, 5].map((rate) => (
+                        <button
+                          key={rate}
+                          type="button"
+                          aria-label={`${rate} stars`}
+                          onClick={() => setRatings((current) => ({ ...current, [worker.id]: rate }))}
+                          className={`text-xl ${rate <= (ratings[worker.id] || 0) ? 'text-amber-500' : 'text-slate-300'}`}
+                        >
+                          ★
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                ))}
+              </div>
+              <textarea
+                value={comment}
+                onChange={(event) => setComment(event.target.value)}
+                rows="2"
+                placeholder="Add a note for the crew (optional)"
+                className="mt-4 w-full rounded-lg border border-slate-200 px-3 py-2.5 text-sm focus:border-forest-600 focus:outline-none"
+              />
+              <button
+                disabled={!crew.every((worker) => ratings[worker.id]) || review.isPending}
+                onClick={() => review.mutate()}
+                className="mt-3 rounded-lg bg-forest-600 px-4 py-2.5 text-sm font-bold text-white transition hover:bg-forest-700 disabled:opacity-50"
+              >
+                Submit review
+              </button>
+            </section>
+          )}
+        </div>
+
+        <aside className="space-y-5">
+          <section className="overflow-hidden rounded-xl border border-slate-100 bg-white">
+            <div className="p-5">
+              <h2 className="font-display font-extrabold">Pickup location</h2>
+              <p className="mt-1 text-sm text-slate-500">{jobAddress}</p>
+            </div>
+            <LocationMap
+              value={jobLocation}
+              markers={workerMarkers}
+              route={workerMarkers.length > 0}
+              height={230}
+            />
+            <div className="grid grid-cols-2 gap-3 p-5 text-sm">
+              <div>
+                <p className="text-xs text-slate-400">CREW SIZE</p>
+                <p className="mt-1 font-bold">{job.workers} workers</p>
+              </div>
+              <div>
+                <p className="text-xs text-slate-400">DURATION</p>
+                <p className="mt-1 font-bold">{job.duration} hours</p>
+              </div>
+              <div className="col-span-2 border-t border-slate-100 pt-3">
+                <p className="text-xs text-slate-400">JOB DESCRIPTION</p>
+                <p className="mt-1 leading-6">{job.description}</p>
+              </div>
+              <div className="col-span-2 flex items-center justify-between border-t border-slate-100 pt-3">
+                <span className="text-slate-500">Total estimate</span>
+                <strong className="font-display text-lg">₹{job.price.toLocaleString('en-IN')}</strong>
+              </div>
+            </div>
+          </section>
+          <p className="text-xs leading-5 text-slate-400">
+            Worker location markers are shared only when available to this assigned job.
+          </p>
+        </aside>
+      </div>
+    </div>
+  );
 }

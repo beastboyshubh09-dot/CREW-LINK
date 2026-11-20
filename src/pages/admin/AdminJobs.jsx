@@ -5,6 +5,67 @@ import { EmptyState, ErrorState, LoadingRows } from '../../components/ui/Resourc
 
 export default function AdminJobs() {
   const { data = [], isLoading, isError, refetch } = useQuery({ queryKey: ['admin-jobs'], queryFn: adminApi.jobs });
-  const counts = ['pending', 'matching', 'assigned', 'in progress', 'completed', 'cancelled'].map((status) => [status, data.filter((job) => job.status === status).length]);
-  return <div><p className="text-xs font-bold uppercase tracking-widest text-forest-700">OPERATIONS</p><h1 className="mt-2 font-display text-3xl font-extrabold">Jobs overview</h1><p className="mt-2 text-sm text-slate-500">Booking activity across the platform.</p><div className="mt-6 grid grid-cols-2 gap-3 sm:grid-cols-3 xl:grid-cols-6">{counts.map(([status, count]) => <article key={status} className="rounded-xl border border-slate-100 bg-white p-4"><p className="text-xs capitalize text-slate-500">{status}</p><p className="mt-2 font-display text-2xl font-extrabold">{count}</p></article>)}</div><section className="mt-7"><h2 className="font-display text-xl font-extrabold">All jobs</h2><div className="mt-4">{isLoading ? <LoadingRows/> : isError ? <ErrorState onRetry={refetch}/> : data.length ? <div className="overflow-x-auto rounded-xl border border-slate-100 bg-white"><table className="w-full min-w-[700px] text-left text-sm"><thead className="bg-slate-50 text-xs uppercase text-slate-500"><tr><th className="px-5 py-3">Job</th><th className="px-5 py-3">Requester</th><th className="px-5 py-3">Location</th><th className="px-5 py-3">Crew</th><th className="px-5 py-3">Status</th><th className="px-5 py-3">Value</th></tr></thead><tbody>{data.map((job) => <tr key={job.id} className="border-t border-slate-100"><td className="px-5 py-4"><p className="font-bold">{job.type}</p><p className="mt-1 text-xs text-slate-400">{job.id}</p></td><td className="px-5 py-4">Maya Patel</td><td className="px-5 py-4 text-slate-500">{job.location.address}</td><td className="px-5 py-4">{job.workers}</td><td className="px-5 py-4"><StatusBadge status={job.status}/></td><td className="px-5 py-4 font-bold">₹{job.price.toLocaleString('en-IN')}</td></tr>)}</tbody></table></div> : <EmptyState title="No jobs to show" detail="New platform bookings will appear here."/>}</div></section></div>;
+  const counts = Object.entries(data.reduce((acc, job) => ({ ...acc, [job.status]: (acc[job.status] || 0) + 1 }), {}));
+
+  return (
+    <div>
+      <p className="text-xs font-bold uppercase tracking-widest text-forest-700">OPERATIONS</p>
+      <h1 className="mt-2 font-display text-3xl font-extrabold">Jobs overview</h1>
+      <p className="mt-2 text-sm text-slate-500">Booking activity across the platform.</p>
+
+      <div className="mt-6 grid grid-cols-2 gap-3 sm:grid-cols-3 xl:grid-cols-6">
+        {counts.map(([status, count]) => (
+          <article key={status} className="rounded-xl border border-slate-100 bg-white p-4">
+            <p className="text-xs capitalize text-slate-500">{status}</p>
+            <p className="mt-2 font-display text-2xl font-extrabold">{count}</p>
+          </article>
+        ))}
+      </div>
+
+      <section className="mt-7">
+        <h2 className="font-display text-xl font-extrabold">All jobs</h2>
+        <div className="mt-4">
+          {isLoading ? (
+            <LoadingRows/>
+          ) : isError ? (
+            <ErrorState onRetry={refetch}/>
+          ) : data.length ? (
+            <div className="overflow-x-auto rounded-xl border border-slate-100 bg-white">
+              <table className="w-full min-w-[700px] text-left text-sm">
+                <thead className="bg-slate-50 text-xs uppercase text-slate-500">
+                  <tr>
+                    <th className="px-5 py-3">Job</th>
+                    <th className="px-5 py-3">Requester</th>
+                    <th className="px-5 py-3">Location</th>
+                    <th className="px-5 py-3">Crew</th>
+                    <th className="px-5 py-3">Status</th>
+                    <th className="px-5 py-3">Value</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {data.map((job) => (
+                    <tr key={job.id} className="border-t border-slate-100">
+                      <td className="px-5 py-4">
+                        <p className="font-bold">{job.type}</p>
+                        <p className="mt-1 text-xs text-slate-400">{job.id}</p>
+                      </td>
+                      <td className="px-5 py-4">Maya Patel</td>
+                      <td className="px-5 py-4 text-slate-500">
+                        {job.location?.address || job.job_address || '—'}
+                      </td>
+                      <td className="px-5 py-4">{job.workers}</td>
+                      <td className="px-5 py-4"><StatusBadge status={job.status}/></td>
+                      <td className="px-5 py-4 font-bold">₹{job.price.toLocaleString('en-IN')}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          ) : (
+            <EmptyState title="No jobs to show" detail="New platform bookings will appear here."/>
+          )}
+        </div>
+      </section>
+    </div>
+  );
 }

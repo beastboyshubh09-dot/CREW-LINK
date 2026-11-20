@@ -7,10 +7,32 @@
 body { margin: 0; min-width: 320px; min-height: 100vh; }
 button, input, select, textarea { font: inherit; }
 button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-visible { outline: 3px solid #68bfa6; outline-offset: 2px; }
-.leaflet-container { z-index: 0; font-family: 'DM Sans', sans-serif; }
+.leaflet-container {
+  z-index: 0;
+  width: 100%;
+  height: 100%;
+  font-family: 'DM Sans', sans-serif;
+}
 .leaflet-control-attribution { font-size: 9px !important; }
-.crewlink-marker { border: 0; background: transparent; }
-.location-dot { display: block; width: 22px; height: 22px; border: 3px solid #fff; border-radius: 9999px; box-shadow: 0 1px 5px rgb(15 23 42 / 45%); }
+.crewlink-marker {
+  border: 0;
+  background: transparent;
+  display: flex !important;
+  align-items: center;
+  justify-content: center;
+}
+.location-dot {
+  display: block;
+  width: 22px;
+  height: 22px;
+  border: 3px solid #fff;
+  border-radius: 9999px;
+  box-shadow: 0 2px 6px rgb(15 23 42 / 45%);
+  transition: transform 0.15s ease-in-out;
+}
+.location-dot:hover {
+  transform: scale(1.15);
+}
 .location-dot--customer { background: #2563eb; }
 .location-dot--worker { background: #16a34a; }
 .location-dot--selected { background: #ea580c; }
