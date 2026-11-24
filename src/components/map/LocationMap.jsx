@@ -2,6 +2,9 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import L from 'leaflet';
 import { MapContainer, Marker, Polyline, Popup, TileLayer, useMap, useMapEvents } from 'react-leaflet';
 import { distanceInKm, extractCoordinates, formatDistance, getBrowserLocation, isValidCoordinate } from '../../utils/location';
+import GoogleMapView from './GoogleMapView';
+
+const googleMapsApiKey = import.meta.env.VITE_GOOGLE_MAPS_API_KEY || '';
 
 const tileUrl = import.meta.env.VITE_MAP_TILE_URL || 'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png';
 const nominatimUrl = (import.meta.env.VITE_NOMINATIM_URL || 'https://nominatim.openstreetmap.org').replace(/\/$/, '');
@@ -182,16 +185,21 @@ function RouteLayer({ origin, destination, onRouteInfo }) {
   ) : null;
 }
 
-export default function LocationMap({
-  value,
-  onChange,
-  markers = [],
-  route = false,
-  onRouteInfo,
-  height = 300,
-  selectable = false,
-  valueKind = 'customer'
-}) {
+export default function LocationMap(props) {
+  if (googleMapsApiKey && !googleMapsApiKey.includes('your-google-maps')) {
+    return <GoogleMapView apiKey={googleMapsApiKey} {...props} />;
+  }
+
+  const {
+    value,
+    onChange,
+    markers = [],
+    route = false,
+    onRouteInfo,
+    height = 300,
+    selectable = false,
+    valueKind = 'customer'
+  } = props;
   const [query, setQuery] = useState('');
   const [searching, setSearching] = useState(false);
   const [locating, setLocating] = useState(false);

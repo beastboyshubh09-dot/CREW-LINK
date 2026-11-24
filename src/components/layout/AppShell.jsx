@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { NavLink, Outlet, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import { useToast } from '../../context/ToastContext';
-import { registerPushToken } from '../../utils/pushNotifications';
+import { registerPushToken } from '../../utils/notifications';
 import { USE_MOCK } from '../../api/client';
 import useLiveEvents from '../../hooks/useLiveEvents';
 
